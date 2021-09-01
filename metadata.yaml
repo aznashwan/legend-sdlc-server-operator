@@ -3,21 +3,33 @@
 
 # For a complete list of supported options, see:
 # https://discourse.charmhub.io/t/charm-metadata-v2/3674/15
+
 name: legend-sdlc-server-operator
-display-name: |
-  TEMPLATE-TODO: fill out a display name for the Charmcraft store
-description: |
-  TEMPLATE-TODO: fill out the charm's description
+# TODO(aznashwan): ask who should be here:
+maintainer: Nashwan Azhari <nazhari@cloudbasesolutions.com>
+
+display-name: FINOS Legend SDLC Server
 summary: |
-  TEMPLATE-TODO: fill out the charm's summary
+  Rich, model-centric metadata managing server.
 
-# TEMPLATE-TODO: replace with containers for your workload (delete for non-k8s)
+description: |
+  Service which provides a rich REST API for managing metadata in a
+  model-centric fashion.
+
+# TODO(aznashwan): request feedback for these:
+tags:
+- finos
+- fintech
+- legend
+
+series:
+- focal
+
 containers:
-  httpbin:
-    resource: httpbin-image
+  sdlc:
+    resource: sdlc-image
 
-# TEMPLATE-TODO: each container defined above must specify an oci-image resource
 resources:
-  httpbin-image:
+  sdlc-image:
     type: oci-image
-    description: OCI image for httpbin (kennethreitz/httpbin)
+    description: OCI image for sdlc (finos/legend-sdlc-server)

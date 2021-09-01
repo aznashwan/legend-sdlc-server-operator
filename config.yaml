@@ -1,14 +1,78 @@
 # Copyright 2021 Canonical
 # See LICENSE file for licensing details.
-#
-# TEMPLATE-TODO: change this example to suit your needs.
-# If you don't need a config, you can remove the file entirely.
-# It ties in to the example _on_config_changed handler in src/charm.py
-#
-# Learn more about config at: https://juju.is/docs/sdk/config
 
 options:
-  thing:
-    default: 🎁
-    description: A thing used by the charm.
+
+  ### Application-related options:
+  # TODO(aznashwan): determine if usecase of multiple connectors
+  # on different ports is worth pursuing and parameterizing:
+  server-application-connector-port-http:
+    type: int
+    default: 7070
+    description: |
+      The port number on which application traffic should be served.
+  
+  # TODO(aznashwan): add a separate option for https endpoints?
+  # Will need to see what certificates needs installing and where.
+  
+  server-admin-connector-port-http:
+    type: int
+    default: 7076
+    description: |
+      The port number on which admin traffic should be served.
+
+  server-root-path:
     type: string
+    default: /api
+    description: |
+      The root path (exluding protocol, host, or port declaration) under
+      which API calls should be made.
+
+  server-logging-level:
+    type: string
+    default: INFO
+    description: |
+      String identifier of the log level to be used for all library classes.
+      Must be one of INFO, WARN, DEBUG, or TRACE, or OFF.
+
+  server-requests-logging-level:
+    type: string
+    default: OFF
+    description: |
+      String identifier of the log level to be used for incoming requests.
+      Must be one of INFO, WARN, DEBUG, or TRACE, or OFF.
+
+  server-logging-format:
+    type: string
+    default: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%thread] %c - %m%n"
+    description: |
+      Pattern to be used for log formatting.
+      Must comply to the `java.util.logging` format string definitions:
+      https://docs.oracle.com/en/java/javase/11/docs/api/java.logging/java/util/logging/SimpleFormatter.html
+
+  ### Gitlab-related options:
+  gitlab-create-new-projects-as-public:
+    type: boolean
+    default: false
+    description: |
+      Whether or not new Gitlab projects created by the SDLC to store
+      working data should be created as public or not.
+
+  gitlab-project-creation-group-pattern:
+    type: string
+    # TODO(aznashwan): check whether this option can be reconfigured
+    # dynamically or the existing project must be torn down for it
+    # to be re-applied by the SDLC.
+    default: ^org\.finos\.legend\..+
+    description: |
+      A pattern (supplied as a Regular Expression) by which the structure
+      of the Gitlab projects should be created.
+
+  gitlab-project-tag:
+    type: string
+    default: legend
+    description: |
+      String tag to be used when creating/managing new Gitlab projects.
+
+  # TODO(aznashwan): determine if Swagger options are worth adding:
+  # https://github.com/finos/legend/blob/master/installers/docker-compose/shared/templates/sdlc/config.yml#L87-L91

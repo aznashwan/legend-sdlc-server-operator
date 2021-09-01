@@ -7,3 +7,6 @@ A quick introduction into Juju and Charmed Operators is available
 
 WARNING: this repository is in very early stages of development and is not
 worth paying much attention to in this current stage.
+
+TODO(aznashwan): source relevant info from:
+https://github.com/finos/legend-sdlc/blob/master/README.md
