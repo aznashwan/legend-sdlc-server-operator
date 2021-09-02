@@ -37,7 +37,7 @@ options:
 
   server-requests-logging-level:
     type: string
-    default: OFF
+    default: "OFF"
     description: |
       String identifier of the log level to be used for incoming requests.
       Must be one of INFO, WARN, DEBUG, or TRACE, or OFF.
@@ -76,3 +76,9 @@ options:
 
   # TODO(aznashwan): determine if Swagger options are worth adding:
   # https://github.com/finos/legend/blob/master/installers/docker-compose/shared/templates/sdlc/config.yml#L87-L91
+
+  # TODO(aznashwan): remove these after gitlab relation defined:
+  gitlab-client-id:
+    type: string
+  gitlab-client-secret:
+    type: string

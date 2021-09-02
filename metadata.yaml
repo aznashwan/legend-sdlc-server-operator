@@ -22,9 +22,6 @@ tags:
 - fintech
 - legend
 
-series:
-- focal
-
 containers:
   sdlc:
     resource: sdlc-image
