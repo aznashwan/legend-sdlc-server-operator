@@ -1,10 +1,8 @@
 # Copyright 2021 Canonical
 # See LICENSE file for licensing details.
 
-# For a complete list of supported options, see:
-# https://discourse.charmhub.io/t/charm-metadata-v2/3674/15
-
 name: legend-sdlc-server-operator
+
 # TODO(aznashwan): ask who should be here:
 maintainer: Nashwan Azhari <nazhari@cloudbasesolutions.com>
 
@@ -21,6 +19,15 @@ tags:
 - finos
 - fintech
 - legend
+
+requires:
+  db:
+    interface: mongodb_datastore
+    # TODO(aznashwan): will we need a second relation for the PAC4J Mongo
+    # backend settings or can we have two databases created in just one?
+    limit: 1
+    optional: false
+    scope: global
 
 containers:
   sdlc:
