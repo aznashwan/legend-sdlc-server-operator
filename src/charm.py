@@ -4,7 +4,7 @@
 
 """ Module defining the Charmed operator for the FINOS Legend SDLC Server. """
 
-import functools
+import json
 import logging
 
 from ops import charm
@@ -13,10 +13,8 @@ from ops import main
 from ops import model
 import yaml
 
-from charms.mongodb_k8s.v0 import mongodb
 
-LOG = logging.getLogger(__name__)
-
+logger = logging.getLogger(__name__)
 
 SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH = "/sdlc-config.yaml"
 
@@ -33,19 +31,6 @@ GITLAB_OPENID_DISCOVERY_URL = (
     "https://gitlab.com/.well-known/openid-configuration")
 
 
-def _logged_charm_entry_point(fun):
-    """ Add logging for method call/exits. """
-    @functools.wraps(fun)
-    def _inner(*args, **kwargs):
-        LOG.info(
-            "### Initiating Legend SDLC charm call to '%s'", fun.__name__)
-        res = fun(*args, **kwargs)
-        LOG.info(
-            "### Completed Legend SDLC charm call to '%s'", fun.__name__)
-        return res
-    return _inner
-
-
 class LegendSDLCServerOperatorCharm(charm.CharmBase):
     """ Charmed operator for the FINOS Legend SDLC Server. """
 
@@ -56,10 +41,6 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
 
         self._set_stored_defaults()
 
-        # MongoDB consumer setup:
-        self._mongodb_consumer = mongodb.MongoConsumer(
-            self, "db", {"mongodb": ">=4.0"}, multi=False)
-
         # Standard charm lifecycle events:
         self.framework.observe(
             self.on.config_changed, self._on_config_changed)
@@ -68,17 +49,16 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
 
         # DB relation lifecycle events:
         self.framework.observe(
-            self.on["db"].relation_joined,
+            self.on["legend-db"].relation_joined,
             self._on_db_relation_joined)
         self.framework.observe(
-            self.on["db"].relation_changed,
+            self.on["legend-db"].relation_changed,
             self._on_db_relation_changed)
 
     def _set_stored_defaults(self) -> None:
         self._stored.set_default(log_level="DEBUG")
         self._stored.set_default(mongodb_credentials={})
 
-    @_logged_charm_entry_point
     def _on_sdlc_pebble_ready(self, event: framework.EventBase) -> None:
         """Define the SDLC workload using the Pebble API.
         Note that this will *not* start the service, but instead leave it in a
@@ -108,7 +88,7 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
                     # NOTE(aznashwan): considering the SDLC service expects
                     # a singular config file which already contains all
                     # relevant options in it (some of which will require the
-                    # relation with Mongo/Gitlab to have already been
+                    # relation with DB/Gitlab to have already been
                     # established), we do not auto-start:
                     "startup": "disabled",
                     # TODO(aznashwan): determine any env vars we could pass
@@ -122,11 +102,11 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         container.add_layer("sdlc", pebble_layer, combine=True)
 
         # NOTE(aznashwan): as mentioned above, we will *not* be auto-starting
-        # the service until the relations with Mongo and Gitlab are added:
+        # the service until the relations with DBMan and Gitlab are added:
         # container.autostart()
 
         self.unit.status = model.BlockedStatus(
-            "Awaiting Legend Engine, Mongo, and Gitlab relations.")
+            "Awaiting Legend Database and Gitlab relations.")
 
     def _get_logging_level_from_config(self, option_name) -> str:
         """Fetches the config option with the given name and checks to
@@ -136,7 +116,7 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         """
         value = self.model.config[option_name]
         if value not in VALID_APPLICATION_LOG_LEVEL_SETTINGS:
-            LOG.warning(
+            logger.warning(
                 "Invalid Java logging level value provided for option "
                 "'%s': '%s'. Valid Java logging levels are: %s. The charm "
                 "shall block until a proper value is set.",
@@ -312,23 +292,23 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         """Generates YAML config for the SDLC server and adds it into the
         container via Pebble files API.
         """
-        LOG.debug(
+        logger.debug(
             "Adding following config under '%s' in container: %s",
             SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH, config)
         container.push(
             SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH,
             yaml.dump(config),
             make_dirs=True)
-        LOG.info(
+        logger.info(
             "Successfully wrote config file in container under '%s'",
             SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH)
 
     def _restart_sdlc_service(self, container: model.Container) -> None:
         """Restarts the SDLC service using the Pebble container API.
         """
-        LOG.debug("Restarting SDLC service")
+        logger.debug("Restarting SDLC service")
         container.restart("sdlc")
-        LOG.debug("Successfully issues SDLC service restart")
+        logger.debug("Successfully issues SDLC service restart")
 
     def _reconfigure_sdlc_service(self) -> None:
         """Generates the YAML config for the SDLC server and adds it into the
@@ -342,24 +322,23 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         possible_blocked_status = (
             self._add_base_service_config_from_charm_config(config))
         if possible_blocked_status:
-            LOG.warning("Missing/erroneous configuration options")
+            logger.warning("Missing/erroneous configuration options")
             self.unit.status = possible_blocked_status
             return
 
         container = self.unit.get_container("sdlc")
-        with container.can_connect():
-            LOG.debug("Updating SDLC service configuration")
+        if container.can_connect():
+            logger.debug("Updating SDLC service configuration")
             self._update_sdlc_service_config(container, config)
             self._restart_sdlc_service(container)
             self.unit.status = model.ActiveStatus(
                 "SDLC service has been started.")
             return
 
-        LOG.info("SDLC container is not active yet. No config to update.")
+        logger.info("SDLC container is not active yet. No config to update.")
         self.unit.status = model.BlockedStatus(
-            "Awaiting Legend Engine, Mongo, and Gitlab relations.")
+            "Awaiting Legend DB and Gitlab relations.")
 
-    @_logged_charm_entry_point
     def _on_config_changed(self, _) -> None:
         """Reacts to configuration changes to the service by:
         - regenerating the YAML config for the SDLC server
@@ -368,44 +347,37 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         """
         self._reconfigure_sdlc_service()
 
-    @_logged_charm_entry_point
     def _on_db_relation_joined(self, event: charm.RelationJoinedEvent):
-        LOG.debug("No actions are to be performed during Mongo relation join")
+        logger.debug("No actions are to be performed during DB relation join")
 
-    @_logged_charm_entry_point
     def _on_db_relation_changed(
             self, event: charm.RelationChangedEvent) -> None:
-        # _ = self.model.get_relation(event.relation.name, event.relation.id)
         rel_id = event.relation.id
-
-        # Check whether credentials for a database are available:
-        mongo_creds = self._mongodb_consumer.credentials(rel_id)
-        if not mongo_creds:
-            LOG.info(
-                "No MongoDB database credentials present in relation. "
-                "Returning now to await their availability.")
+        rel = self.framework.model.get_relation("legend-db", rel_id)
+        mongo_creds_json = rel.data[event.app].get("legend-db-connection")
+        if not mongo_creds_json:
             self.unit.status = model.WaitingStatus(
-                "Waiting for MongoDB database credentials.")
+                "Awaiting DB relation data.")
+            event.defer()
             return
-        LOG.info(
-            "Current MongoDB database creds provided by relation are: %s",
+        logger.debug(
+            "Mongo JSON credentials returned by DB relation: %s",
+            mongo_creds_json)
+
+        mongo_creds = None
+        try:
+            mongo_creds = json.loads(mongo_creds_json)
+        except (ValueError, TypeError) as ex:
+            logger.warn(
+                "Exception occured while deserializing DB relation "
+                "connection data: %s", str(ex))
+            self.unit.status = model.BlockedStatus(
+                "Could not deserialize Legend DB connection data.")
+            return
+        logger.debug(
+            "Deserialized Mongo credentials returned by DB relation: %s",
             mongo_creds)
 
-        # Check whether the databases were created:
-        databases = self._mongodb_consumer.databases(rel_id)
-        if not databases:
-            LOG.info(
-                "No MongoDB database currently present in relation. "
-                "Requesting creation now.")
-            self._mongodb_consumer.new_database()
-            self.unit.status = model.WaitingStatus(
-                "Waiting for MongoDB database creation.")
-            return
-        LOG.info(
-            "Current MongoDB databases provided by the relation are: %s",
-            databases)
-        # NOTE(aznashwan): we hackily add the databases in here too:
-        mongo_creds['databases'] = databases
         self._stored.mongodb_credentials = mongo_creds
 
         # Attempt to reconfigure and restart the service with the new data:
