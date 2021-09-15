@@ -29,6 +29,11 @@ requires:
     optional: false
     scope: global
 
+provides:
+  legend-sdlc:
+    interface: legend_sdlc
+    scope: global
+
 containers:
   sdlc:
     resource: sdlc-image

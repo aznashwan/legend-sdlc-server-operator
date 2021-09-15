@@ -6,6 +6,7 @@
 
 import json
 import logging
+import subprocess
 
 from ops import charm
 from ops import framework
@@ -29,6 +30,8 @@ GITLAB_PROJECT_VISIBILITY_PRIVATE = "private"
 GITLAB_REQUIRED_SCOPES = ["openid", "profile", "api"]
 GITLAB_OPENID_DISCOVERY_URL = (
     "https://gitlab.com/.well-known/openid-configuration")
+
+SDLC_SERVICE_URL_FORMAT = "%(schema)s://%(host)s:%(port)s%(path)s"
 
 
 class LegendSDLCServerOperatorCharm(charm.CharmBase):
@@ -54,6 +57,14 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         self.framework.observe(
             self.on["legend-db"].relation_changed,
             self._on_db_relation_changed)
+
+        # Studio relation events:
+        self.framework.observe(
+            self.on["legend-sdlc"].relation_joined,
+            self._on_studio_relation_joined)
+        self.framework.observe(
+            self.on["legend-sdlc"].relation_changed,
+            self._on_studio_relation_changed)
 
     def _set_stored_defaults(self) -> None:
         self._stored.set_default(log_level="DEBUG")
@@ -382,6 +393,28 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
 
         # Attempt to reconfigure and restart the service with the new data:
         self._reconfigure_sdlc_service()
+
+    def _get_sdlc_service_url(self):
+        ip_address = subprocess.check_output(
+            ["unit-get", "private-address"]).decode().strip()
+        return SDLC_SERVICE_URL_FORMAT % ({
+            # NOTE(aznashwan): we always return the plain HTTP endpoint:
+            "schema": "http",
+            "host": ip_address,
+            "port": self.model.config[
+                "server-application-connector-port-http"],
+            "path": self.model.config["server-root-path"]})
+
+    def _on_studio_relation_joined(
+            self, event: charm.RelationJoinedEvent) -> None:
+        rel = event.relation
+        sdlc_url = self._get_sdlc_service_url()
+        logger.info("### Providing following SDLC URL to Studio: %s", sdlc_url)
+        rel.data[self.app]["legend-sdlc-url"] = sdlc_url
+
+    def _on_studio_relation_changed(
+            self, event: charm.RelationChangedEvent) -> None:
+        pass
 
 
 if __name__ == "__main__":
