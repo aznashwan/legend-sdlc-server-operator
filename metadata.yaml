@@ -29,6 +29,9 @@ requires:
     optional: false
     scope: global
 
+  ingress:
+    interface: ingress
+
 provides:
   legend-sdlc:
     interface: legend_sdlc

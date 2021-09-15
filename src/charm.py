@@ -14,10 +14,13 @@ from ops import main
 from ops import model
 import yaml
 
+from charms.nginx_ingress_integrator.v0 import ingress
+
 
 logger = logging.getLogger(__name__)
 
 SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH = "/sdlc-config.yaml"
+SDLC_SERVICE_URL_FORMAT = "%(schema)s://%(host)s:%(port)s%(path)s"
 
 APPLICATION_CONNECTOR_TYPE_HTTP = "http"
 APPLICATION_CONNECTOR_TYPE_HTTPS = "https"
@@ -31,8 +34,6 @@ GITLAB_REQUIRED_SCOPES = ["openid", "profile", "api"]
 GITLAB_OPENID_DISCOVERY_URL = (
     "https://gitlab.com/.well-known/openid-configuration")
 
-SDLC_SERVICE_URL_FORMAT = "%(schema)s://%(host)s:%(port)s%(path)s"
-
 
 class LegendSDLCServerOperatorCharm(charm.CharmBase):
     """ Charmed operator for the FINOS Legend SDLC Server. """
@@ -43,6 +44,16 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         super().__init__(*args)
 
         self._set_stored_defaults()
+
+        self.ingress = ingress.IngressRequires(
+            self,
+            {
+                "service-hostname": self.app.name,
+                "service-name": self.app.name,
+                "service-port": self.model.config[
+                    'server-application-connector-port-http'],
+            },
+        )
 
         # Standard charm lifecycle events:
         self.framework.observe(
