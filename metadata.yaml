@@ -1,12 +1,12 @@
 # Copyright 2021 Canonical
 # See LICENSE file for licensing details.
 
-name: legend-sdlc-server
+name: finos-legend-sdlc-k8s
+display-name: FINOS Legend SDLC Server
 
 # TODO(aznashwan): ask who should be here:
 maintainer: Nashwan Azhari <nazhari@cloudbasesolutions.com>
 
-display-name: FINOS Legend SDLC Server
 summary: |
   Rich, model-centric metadata managing server.
 
