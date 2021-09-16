@@ -1,7 +1,7 @@
 # Copyright 2021 Canonical
 # See LICENSE file for licensing details.
 
-name: legend-sdlc-server-operator
+name: legend-sdlc-server
 
 # TODO(aznashwan): ask who should be here:
 maintainer: Nashwan Azhari <nazhari@cloudbasesolutions.com>
@@ -14,17 +14,9 @@ description: |
   Service which provides a rich REST API for managing metadata in a
   model-centric fashion.
 
-# TODO(aznashwan): request feedback for these:
-tags:
-- finos
-- fintech
-- legend
-
 requires:
   legend-db:
     interface: legend_mongodb
-    # TODO(aznashwan): will we need a second relation for the PAC4J Mongo
-    # backend settings or can we have two databases created in just one?
     limit: 1
     optional: false
     scope: global
@@ -35,7 +27,6 @@ requires:
 provides:
   legend-sdlc:
     interface: legend_sdlc
-    scope: global
 
 containers:
   sdlc:

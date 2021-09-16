@@ -4,30 +4,6 @@
 options:
 
   ### Application-related options:
-  # TODO(aznashwan): determine if usecase of multiple connectors
-  # on different ports is worth pursuing and parameterizing:
-  server-application-connector-port-http:
-    type: int
-    default: 7070
-    description: |
-      The port number on which application traffic should be served.
-  
-  # TODO(aznashwan): add a separate option for https endpoints?
-  # Will need to see what certificates needs installing and where.
-  
-  server-admin-connector-port-http:
-    type: int
-    default: 7076
-    description: |
-      The port number on which admin traffic should be served.
-
-  server-root-path:
-    type: string
-    default: /api
-    description: |
-      The root path (exluding protocol, host, or port declaration) under
-      which API calls should be made.
-
   server-logging-level:
     type: string
     default: INFO
@@ -41,14 +17,6 @@ options:
     description: |
       String identifier of the log level to be used for incoming requests.
       Must be one of INFO, WARN, DEBUG, or TRACE, or OFF.
-
-  server-logging-format:
-    type: string
-    default: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%thread] %c - %m%n"
-    description: |
-      Pattern to be used for log formatting.
-      Must comply to the `java.util.logging` format string definitions:
-      https://docs.oracle.com/en/java/javase/11/docs/api/java.logging/java/util/logging/SimpleFormatter.html
 
   ### Gitlab-related options:
   gitlab-create-new-projects-as-public:

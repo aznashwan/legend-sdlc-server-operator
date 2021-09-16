@@ -24,7 +24,12 @@ SDLC_SERVICE_URL_FORMAT = "%(schema)s://%(host)s:%(port)s%(path)s"
 
 APPLICATION_CONNECTOR_TYPE_HTTP = "http"
 APPLICATION_CONNECTOR_TYPE_HTTPS = "https"
+APPLICATION_CONNECTOR_PORT_HTTP = 7070
+APPLICATION_ADMIN_CONNECTOR_PORT_HTTP = 7076
+APPLICATION_ROOT_PATH = "/api"
 
+APPLICATION_LOGGING_FORMAT = (
+    "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p [%thread] %c - %m%n")
 VALID_APPLICATION_LOG_LEVEL_SETTINGS = [
     "INFO", "WARN", "DEBUG", "TRACE", "OFF"]
 
@@ -50,8 +55,7 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
             {
                 "service-hostname": self.app.name,
                 "service-name": self.app.name,
-                "service-port": self.model.config[
-                    'server-application-connector-port-http'],
+                "service-port": APPLICATION_CONNECTOR_PORT_HTTP,
             },
         )
 
@@ -179,7 +183,6 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
             "server-requests-logging-level")
         server_logging_level = self._get_logging_level_from_config(
             "server-logging-level")
-        server_logging_format = self.model.config['server-logging-format']
         if not all([server_logging_level, request_logging_level]):
             return model.BlockedStatus(
                 "One or more logging config options are improperly formatted "
@@ -214,11 +217,10 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
         sdlc_config.update({
             "applicationName": "Legend SDLC",
             "server": {
-                "rootPath": self.model.config["server-root-path"],
+                "rootPath": APPLICATION_ROOT_PATH,
                 "applicationConnectors": [{
                     "type": APPLICATION_CONNECTOR_TYPE_HTTP,
-                    "port": self.model.config[
-                        'server-application-connector-port-http'],
+                    "port": APPLICATION_CONNECTOR_PORT_HTTP,
                     "maxRequestHeaderSize": "128KiB"
                 }],
                 "adminConnectors": [{
@@ -296,7 +298,7 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
                 "level": server_logging_level,
                 "appenders": [{
                     "type": "console",
-                    "logFormat": server_logging_format,
+                    "logFormat": APPLICATION_LOGGING_FORMAT,
                 }]
             },
             "swagger": {
@@ -412,9 +414,8 @@ class LegendSDLCServerOperatorCharm(charm.CharmBase):
             # NOTE(aznashwan): we always return the plain HTTP endpoint:
             "schema": "http",
             "host": ip_address,
-            "port": self.model.config[
-                "server-application-connector-port-http"],
-            "path": self.model.config["server-root-path"]})
+            "port": APPLICATION_CONNECTOR_PORT_HTTP,
+            "path": APPLICATION_ROOT_PATH})
 
     def _on_studio_relation_joined(
             self, event: charm.RelationJoinedEvent) -> None:
