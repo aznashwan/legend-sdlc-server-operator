@@ -44,9 +44,3 @@ options:
 
   # TODO(aznashwan): determine if Swagger options are worth adding:
   # https://github.com/finos/legend/blob/master/installers/docker-compose/shared/templates/sdlc/config.yml#L87-L91
-
-  # TODO(aznashwan): remove these after gitlab relation defined:
-  gitlab-client-id:
-    type: string
-  gitlab-client-secret:
-    type: string

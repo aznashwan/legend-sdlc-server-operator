@@ -21,6 +21,12 @@ requires:
     optional: false
     scope: global
 
+  legend-sdlc-gitlab:
+    interface: legend_sdlc_gitlab
+    limit: 1
+    options: false
+    scope: global
+
   ingress:
     interface: ingress
 

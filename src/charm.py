@@ -14,6 +14,7 @@ from ops import model
 import yaml
 
 from charms.finos_legend_db_k8s.v0 import legend_database
+from charms.finos_legend_gitlab_integrator_k8s.v0 import legend_gitlab
 from charms.nginx_ingress_integrator.v0 import ingress
 
 
@@ -21,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH = "/sdlc-config.yaml"
 SDLC_SERVICE_URL_FORMAT = "%(schema)s://%(host)s:%(port)s%(path)s"
+
+SDLC_MAIN_GITLAB_REDIRECT_URL = "%(base_url)s/auth/callback"
+SDLC_GITLAB_REDIRECT_URI_FORMATS = [
+    SDLC_MAIN_GITLAB_REDIRECT_URL,
+    "%(base_url)s/pac4j/login/callback"]
 
 APPLICATION_CONNECTOR_TYPE_HTTP = "http"
 APPLICATION_CONNECTOR_TYPE_HTTPS = "https"
@@ -34,10 +40,9 @@ VALID_APPLICATION_LOG_LEVEL_SETTINGS = [
     "INFO", "WARN", "DEBUG", "TRACE", "OFF"]
 
 GITLAB_PROJECT_VISIBILITY_PUBLIC = "public"
+
 GITLAB_PROJECT_VISIBILITY_PRIVATE = "private"
 GITLAB_REQUIRED_SCOPES = ["openid", "profile", "api"]
-GITLAB_OPENID_DISCOVERY_URL = (
-    "https://gitlab.com/.well-known/openid-configuration")
 
 
 class LegendSDLCServerCharm(charm.CharmBase):
@@ -50,16 +55,16 @@ class LegendSDLCServerCharm(charm.CharmBase):
 
         self._set_stored_defaults()
 
+        # Various charm library consumers:
         self._legend_db_consumer = legend_database.LegendDatabaseConsumer(
-            self)
+            self, relation_name="legend-db")
+        self._legend_gitlab_consumer = legend_gitlab.LegendGitlabConsumer(
+            self, relation_name="legend-sdlc-gitlab")
         self.ingress = ingress.IngressRequires(
-            self,
-            {
+            self, {
                 "service-hostname": self.app.name,
                 "service-name": self.app.name,
-                "service-port": APPLICATION_CONNECTOR_PORT_HTTP,
-            },
-        )
+                "service-port": APPLICATION_CONNECTOR_PORT_HTTP})
 
         # Standard charm lifecycle events:
         self.framework.observe(
@@ -75,6 +80,14 @@ class LegendSDLCServerCharm(charm.CharmBase):
             self.on["legend-db"].relation_changed,
             self._on_db_relation_changed)
 
+        # GitLab integrator lifecycle:
+        self.framework.observe(
+            self.on["legend-sdlc-gitlab"].relation_joined,
+            self._on_legend_gitlab_relation_joined)
+        self.framework.observe(
+            self.on["legend-sdlc-gitlab"].relation_changed,
+            self._on_legend_gitlab_relation_changed)
+
         # Studio relation events:
         self.framework.observe(
             self.on["legend-sdlc"].relation_joined,
@@ -86,6 +99,7 @@ class LegendSDLCServerCharm(charm.CharmBase):
     def _set_stored_defaults(self) -> None:
         self._stored.set_default(log_level="DEBUG")
         self._stored.set_default(legend_db_credentials={})
+        self._stored.set_default(legend_gitlab_credentials={})
 
     def _on_sdlc_pebble_ready(self, event: framework.EventBase) -> None:
         """Define the SDLC workload using the Pebble API.
@@ -134,7 +148,8 @@ class LegendSDLCServerCharm(charm.CharmBase):
         # container.autostart()
 
         self.unit.status = model.BlockedStatus(
-            "Awaiting Legend Database and Gitlab relations.")
+            "requires relating to: finos-legend-db-k8s, "
+            "finos-legend-gitlab-integrator-k8s")
 
     def _get_logging_level_from_config(self, option_name) -> str:
         """Fetches the config option with the given name and checks to
@@ -162,23 +177,29 @@ class LegendSDLCServerCharm(charm.CharmBase):
             are present and have passed Charm-side valiation steps.
             A `model.BlockedStatus` instance with a relevant message otherwise.
         """
+        # Check Mongo-related options:
+        mongo_creds = self._stored.legend_db_credentials
+        if not mongo_creds:
+            return model.BlockedStatus(
+                "requires relating to: finos-legend-db-k8s")
+
         # Check gitlab-related options:
         gitlab_project_visibility = GITLAB_PROJECT_VISIBILITY_PRIVATE
         if self.model.config['gitlab-create-new-projects-as-public']:
             gitlab_project_visibility = GITLAB_PROJECT_VISIBILITY_PUBLIC
-        # TODO(aznashwan): remove this check on eventual Gitlab relation:
-        gitlab_client_id = self.model.config.get('gitlab-client-id')
-        gitlab_client_secret = self.model.config.get('gitlab-client-secret')
+
+        legend_gitlab_creds = self._stored.legend_gitlab_credentials
+        if not legend_gitlab_creds:
+            return model.BlockedStatus(
+                "requires relating to: finos-legend-gitlab-integrator-k8s")
+        gitlab_client_id = legend_gitlab_creds['client_id']
+        gitlab_client_secret = legend_gitlab_creds[
+            'client_secret']
+        gitlab_openid_discovery_url = legend_gitlab_creds[
+            'openid_discovery_url']
         gitlab_project_tag = self.model.config['gitlab-project-tag']
         gitlab_project_creation_group_pattern = (
             self.model.config['gitlab-project-creation-group-pattern'])
-        if not all([
-                gitlab_project_visibility, gitlab_client_id,
-                gitlab_client_secret, gitlab_project_tag,
-                gitlab_project_creation_group_pattern]):
-            return model.BlockedStatus(
-                "One or more Gitlab-related charm configuration options "
-                "are missing.")
 
         # Check Java logging options:
         request_logging_level = self._get_logging_level_from_config(
@@ -187,16 +208,8 @@ class LegendSDLCServerCharm(charm.CharmBase):
             "server-logging-level")
         if not all([server_logging_level, request_logging_level]):
             return model.BlockedStatus(
-                "One or more logging config options are improperly formatted "
-                "or missing. Please review the debug-log for more details.")
-
-        # Check Mongo-related options:
-        mongo_creds = self._stored.legend_db_credentials
-        if not mongo_creds:
-            return model.BlockedStatus(
-                "No stored MongoDB credentials were found yet. Please "
-                "ensure the Charm is properly related to the Legend "
-                "Database Manager charm.")
+                "one or more logging config options are improperly formatted "
+                "or missing, please review the debug-log for more details")
 
         # Compile base config:
         sdlc_config.update({
@@ -243,7 +256,8 @@ class LegendSDLCServerCharm(charm.CharmBase):
                         # TODO(aznashwan): set these on Gitlab relation:
                         "clientId": gitlab_client_id,
                         "secret": gitlab_client_secret,
-                        "discoveryUri": GITLAB_OPENID_DISCOVERY_URL,
+                        # TODO(aznashwan): set this on gitlab rel too:
+                        "discoveryUri": gitlab_openid_discovery_url,
                         # NOTE(aznashwan): needs to be a space-separated str:
                         "scope": " ".join(GITLAB_REQUIRED_SCOPES)
                     }
@@ -258,21 +272,24 @@ class LegendSDLCServerCharm(charm.CharmBase):
                 "projectTag": gitlab_project_tag,
                 "uat": {
                     "server": {
-                        # NOTE(aznashwan): these will need configuring when we
-                        # add support for relating to a Juju-managed Gitlab:
-                        "scheme": "https",
-                        "host": "gitlab.com",
+                        # TODO(aznashwan): check if a 'port' is available:
+                        "scheme": legend_gitlab_creds['gitlab_scheme'],
+                        "host": legend_gitlab_creds['gitlab_host'],
                     },
                     "app": {
                         # TODO(aznashwan): set these on Gitlab relation:
                         "id": gitlab_client_id,
                         "secret": gitlab_client_secret,
                         "redirectURI": (
-                            "http://localhost:7070/api/auth/callback")
+                            SDLC_MAIN_GITLAB_REDIRECT_URL % {
+                                "base_url": self._get_sdlc_service_url()})
                     }
                 },
             },
             "projectStructure": {
+                "projectCreation": {
+                    "groupIdPattern": gitlab_project_creation_group_pattern
+                },
                 "extensionProvider": {
                     "org.finos.legend.sdlc.server.gitlab.finos."
                     "FinosGitlabProjectStructureExtensionProvider": {}
@@ -339,13 +356,13 @@ class LegendSDLCServerCharm(charm.CharmBase):
             logger.debug("Updating SDLC service configuration")
             self._update_sdlc_service_config(container, config)
             self._restart_sdlc_service(container)
-            self.unit.status = model.ActiveStatus(
-                "SDLC service has been started.")
+            self.unit.status = model.ActiveStatus()
             return
 
         logger.info("SDLC container is not active yet. No config to update.")
         self.unit.status = model.BlockedStatus(
-            "Awaiting Legend DB and Gitlab relations.")
+            "requires relating to: finos-legend-db-k8s, "
+            "finos-legend-gitlab-integrator-k8s")
 
     def _on_config_changed(self, _) -> None:
         """Reacts to configuration changes to the service by:
@@ -364,8 +381,7 @@ class LegendSDLCServerCharm(charm.CharmBase):
             event.relation.id)
         if not mongo_creds:
             self.unit.status = model.WaitingStatus(
-                "Awaiting DB relation data.")
-            event.defer()
+                "awaiting legend db relation data")
             return
         logger.debug(
             "Mongo credentials returned by DB relation: %s",
@@ -395,6 +411,39 @@ class LegendSDLCServerCharm(charm.CharmBase):
     def _on_studio_relation_changed(
             self, event: charm.RelationChangedEvent) -> None:
         pass
+
+    def _on_legend_gitlab_relation_joined(
+            self, event: charm.RelationJoinedEvent) -> None:
+        base_url = self._get_sdlc_service_url()
+        redirect_uris = [
+            fmt % {"base_url": base_url}
+            for fmt in SDLC_GITLAB_REDIRECT_URI_FORMATS]
+
+        legend_gitlab.set_legend_gitlab_redirect_uris_in_relation_data(
+            event.relation.data[self.app], redirect_uris)
+
+    def _on_legend_gitlab_relation_changed(
+            self, event: charm.RelationChangedEvent) -> None:
+        gitlab_creds = None
+        try:
+            gitlab_creds = (
+                self._legend_gitlab_consumer.get_legend_gitlab_creds(
+                    event.relation.id))
+        except Exception as ex:
+            logger.exception(ex)
+            self.unit.status = model.BlockedStatus(
+                "failed to retrieve GitLab creds from relation data, "
+                "ensure finos-legend-gitlab-integrator-k8s is compatible")
+            return
+
+        if not gitlab_creds:
+            self.unit.status = model.WaitingStatus(
+                "awaiting legend gitlab credentials from integrator")
+            event.defer()
+            return
+
+        self._stored.legend_gitlab_credentials = gitlab_creds
+        self._reconfigure_sdlc_service()
 
 
 if __name__ == "__main__":
