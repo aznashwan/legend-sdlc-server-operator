@@ -3,3 +3,4 @@
 # `container.is_ready()` decorator so we install from git:
 git+https://github.com/canonical/operator.git
 PyYAML
+pyjks

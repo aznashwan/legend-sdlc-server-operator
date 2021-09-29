@@ -4,6 +4,7 @@
 
 """ Module defining the Charmed operator for the FINOS Legend SDLC Server. """
 
+import base64
 import logging
 import subprocess
 
@@ -11,6 +12,7 @@ from ops import charm
 from ops import framework
 from ops import main
 from ops import model
+import jks
 import yaml
 
 from charms.finos_legend_db_k8s.v0 import legend_database
@@ -27,6 +29,11 @@ SDLC_MAIN_GITLAB_REDIRECT_URL = "%(base_url)s/auth/callback"
 SDLC_GITLAB_REDIRECT_URI_FORMATS = [
     SDLC_MAIN_GITLAB_REDIRECT_URL,
     "%(base_url)s/pac4j/login/callback"]
+
+TRUSTSTORE_TYPE_JKS = "jks"
+TRUSTSTORE_NAME = "Legend SDLC"
+TRUSTSTORE_PASSPHRASE = "Legend SDLC"
+TRUSTSTORE_CONTAINER_LOCAL_PATH = "/truststore.jks"
 
 APPLICATION_CONNECTOR_TYPE_HTTP = "http"
 APPLICATION_CONNECTOR_TYPE_HTTPS = "https"
@@ -123,8 +130,12 @@ class LegendSDLCServerCharm(charm.CharmBase):
                         "/bin/sh -c 'java -XX:+ExitOnOutOfMemoryError "
                         "-XX:MaxRAMPercentage=60 -Xss4M -cp /app/bin/*.jar "
                         "-Dfile.encoding=UTF8 "
+                        "-Djavax.net.ssl.trustStore=\"%s\" "
+                        "-Djavax.net.ssl.trustStorePassword=\"%s\" "
                         "org.finos.legend.sdlc.server.LegendSDLCServer "
-                        "server %s'" % (
+                        "server \"%s\"'" % (
+                            TRUSTSTORE_CONTAINER_LOCAL_PATH,
+                            TRUSTSTORE_PASSPHRASE,
                             SDLC_CONFIG_FILE_CONTAINER_LOCAL_PATH)
                     ),
                     # NOTE(aznashwan): considering the SDLC service expects
@@ -333,7 +344,49 @@ class LegendSDLCServerCharm(charm.CharmBase):
         """
         logger.debug("Restarting SDLC service")
         container.restart("sdlc")
-        logger.debug("Successfully issues SDLC service restart")
+        logger.debug("Successfully issued SDLC service restart")
+
+    def _write_java_truststore_to_container(self, container):
+        """Creates a Java jsk truststore from the certificate in the GitLab
+        relation data and adds it into the container under the appropriate
+        path.
+        Returns a `model.BlockedStatus` if any issue occurs.
+        """
+        gitlab_cert_b64 = self._stored.legend_gitlab_credentials.get(
+            "gitlab_host_cert_b64")
+        if not gitlab_cert_b64:
+            return model.BlockedStatus(
+                "no 'gitlab_host_cert_b64' present in relation data")
+
+        gitlab_cert_raw = None
+        try:
+            gitlab_cert_raw = base64.b64decode(gitlab_cert_b64)
+        except Exception as ex:
+            logger.exception(ex)
+            return model.BlockedStatus("failed to decode b64 cert")
+
+        keystore_dump = None
+        try:
+            cert_entry = jks.TrustedCertEntry.new(
+                TRUSTSTORE_NAME, gitlab_cert_raw)
+            keystore = jks.KeyStore.new(
+                TRUSTSTORE_TYPE_JKS, [cert_entry])
+            keystore_dump = keystore.saves(TRUSTSTORE_PASSPHRASE)
+        except Exception as ex:
+            logger.exception(ex)
+            return model.BlockedStatus(
+                "failed to create jks keystore: %s", str(ex))
+
+        logger.debug(
+            "Adding jks trustore under '%s' in container",
+            TRUSTSTORE_CONTAINER_LOCAL_PATH)
+        container.push(
+            TRUSTSTORE_CONTAINER_LOCAL_PATH,
+            keystore_dump,
+            make_dirs=True)
+        logger.info(
+            "Successfully wrote java truststore file to %s",
+            TRUSTSTORE_CONTAINER_LOCAL_PATH)
 
     def _reconfigure_sdlc_service(self) -> None:
         """Generates the YAML config for the SDLC server and adds it into the
@@ -353,6 +406,13 @@ class LegendSDLCServerCharm(charm.CharmBase):
 
         container = self.unit.get_container("sdlc")
         if container.can_connect():
+            possible_blocked_status = (
+                self._write_java_truststore_to_container(
+                    container))
+            if possible_blocked_status:
+                self.unit.status = possible_blocked_status
+                return
+
             logger.debug("Updating SDLC service configuration")
             self._update_sdlc_service_config(container, config)
             self._restart_sdlc_service(container)
