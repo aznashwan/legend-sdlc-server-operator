@@ -285,7 +285,9 @@ class LegendSDLCServerCharm(charm.CharmBase):
                     "server": {
                         # TODO(aznashwan): check if a 'port' is available:
                         "scheme": legend_gitlab_creds['gitlab_scheme'],
-                        "host": legend_gitlab_creds['gitlab_host'],
+                        "host": "%s:%s" % (
+                            legend_gitlab_creds['gitlab_host'],
+                            legend_gitlab_creds['gitlab_port']),
                     },
                     "app": {
                         # TODO(aznashwan): set these on Gitlab relation:

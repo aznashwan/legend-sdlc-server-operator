@@ -21,7 +21,7 @@ options:
   ### Gitlab-related options:
   gitlab-create-new-projects-as-public:
     type: boolean
-    default: false
+    default: true
     description: |
       Whether or not new Gitlab projects created by the SDLC to store
       working data should be created as public or not.
