@@ -130,12 +130,21 @@ class LegendGitlabConsumer(framework.Object):
             {
                 "client_id": "<client_id>",
                 "client_secret": "<client_secret>"
+                "openid_discovery_url": "<URL>",
+                "gitlab_host": "<GitLab hostname or IP>",
+                "gitlab_port": <port>,
+                "gitlab_scheme": "<http/https>",
+                "gitlab_host_cert_b64": "<base64 DER certificate>"
             }
 
         Raises:
             TooManyRelatedAppsError if relation id is not provided and
             multiple relation of the same name are present.
             ValueError: if the GitLab creds are misformatted.
+
+    "client_id", "client_secret", "openid_discovery_url",
+    "gitlab_host", "gitlab_port", "gitlab_scheme",
+    "gitlab_host_cert_b64"
         """
         relation = self.framework.model.get_relation(
             self.relation_name, relation_id)
