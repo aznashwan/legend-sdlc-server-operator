@@ -1,6 +1,4 @@
-# ops >= 1.2.0
-# NOTE(aznashwan 06/09/21): Pypi package doesn't feature the
-# `container.is_ready()` decorator so we install from git:
-git+https://github.com/canonical/operator.git
+git+https://github.com/canonical/finos-legend-libs.git
 PyYAML
-pyjks
+# NOTE(aznashwan): required by finos-legend-libs:
+git+https://github.com/canonical/operator.git
