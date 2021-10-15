@@ -11,9 +11,7 @@ from ops import main
 from ops import model
 import yaml
 
-from finos_legend_operator import constants
-from finos_legend_operator import base_operator
-from finos_legend_operator import utils
+from charms.finos_legend_libs.v0 import legend_operator_base
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +44,8 @@ GITLAB_PROJECT_VISIBILITY_PRIVATE = "private"
 GITLAB_REQUIRED_SCOPES = ["openid", "profile", "api"]
 
 
-class LegendSDLCServerCharm(base_operator.BaseFinosLegendCoreServiceCharm):
+class LegendSDLCServerCharm(
+        legend_operator_base.BaseFinosLegendCoreServiceCharm):
     """ Charmed operator for the FINOS Legend SDLC Server. """
 
     def __init__(self, *args):
@@ -119,6 +118,7 @@ class LegendSDLCServerCharm(base_operator.BaseFinosLegendCoreServiceCharm):
         if cert:
             # NOTE(aznashwan): cert label 'gitlab-sdlc' is arbitrary:
             jks_prefs['trusted_certificates']['gitlab-sdlc'] = cert
+        return jks_prefs
 
     @classmethod
     def _get_legend_gitlab_relation_name(cls):
@@ -129,7 +129,7 @@ class LegendSDLCServerCharm(base_operator.BaseFinosLegendCoreServiceCharm):
         return LEGEND_DB_RELATION_NAME
 
     def _get_sdlc_service_url(self):
-        ip_address = utils.get_ip_address()
+        ip_address = legend_operator_base.get_ip_address()
         return SDLC_SERVICE_URL_FORMAT % ({
             # NOTE(aznashwan): we always return the plain HTTP endpoint:
             "schema": "http",
@@ -186,12 +186,12 @@ class LegendSDLCServerCharm(base_operator.BaseFinosLegendCoreServiceCharm):
             "server": {
                 "rootPath": APPLICATION_ROOT_PATH,
                 "applicationConnectors": [{
-                    "type": constants.APPLICATION_CONNECTOR_TYPE_HTTP,
+                    "type": legend_operator_base.APPLICATION_CONNECTOR_TYPE_HTTP,
                     "port": APPLICATION_CONNECTOR_PORT_HTTP,
                     "maxRequestHeaderSize": "128KiB"
                 }],
                 "adminConnectors": [{
-                    "type": constants.APPLICATION_CONNECTOR_TYPE_HTTP,
+                    "type": legend_operator_base.APPLICATION_CONNECTOR_TYPE_HTTP,
                     "port": APPLICATION_ADMIN_CONNECTOR_PORT_HTTP
                 }],
                 "gzip": {
