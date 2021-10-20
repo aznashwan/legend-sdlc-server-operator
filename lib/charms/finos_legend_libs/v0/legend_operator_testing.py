@@ -23,7 +23,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 
 TEST_CERTIFICATE_BASE64 = """
@@ -75,7 +75,7 @@ class BaseFinosLegendTestCharm(legend_operator_base.BaseFinosLegendCharm):
         "truststore_path": "/path/to/truststore.jks",
         "truststore_passphrase": "legend-test",
         "trusted_certificates": {
-            "testing-cert-1": TEST_CERTIFICATE}}
+            "testing-cert-1": TEST_CERTIFICATE_BASE64}}
 
     def __init__(self, framework):
         super().__init__(framework)
@@ -329,7 +329,9 @@ class BaseFinosLegendCharmTestCase(unittest.TestCase):
 
         trust_prefs = self.harness.charm._get_jks_truststore_preferences()
         self.mocked_create_jks_truststore_with_certificates.assert_has_calls(
-            [mock.call(trust_prefs["trusted_certificates"])])
+            [mock.call({
+                cert_name: self.mocked_parse_base64_certificate.return_value
+                for cert_name in trust_prefs["trusted_certificates"]})])
 
         # Check all config files present:
         container = self.harness.charm.unit.get_container(
