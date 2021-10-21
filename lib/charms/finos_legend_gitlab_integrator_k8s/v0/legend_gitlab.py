@@ -17,7 +17,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 REQUIRED_LEGEND_GITLAB_CREDENTIALS = [
     "client_id", "client_secret", "openid_discovery_url",
@@ -199,10 +199,6 @@ class LegendGitlabConsumer(framework.Object):
                 self.relation_name, relation_id)
             return []
         relation_data = relation.data[relation.app]
-
-        print("all rel data:", relation.data)
-        print("rel_data:", relation_data)
-        print("rel.app", relation.app.name)
 
         redirect_uris = None
         redirect_uris_data = relation_data.get(
