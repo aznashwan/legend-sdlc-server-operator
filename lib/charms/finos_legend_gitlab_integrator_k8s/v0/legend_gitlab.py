@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-# Copyright 2021 Canonical
+# Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-""" Charm library formalizing FINOS GitLab relations. """
+"""Charm library formalizing FINOS GitLab relations."""
 
 import json
 import logging
@@ -17,7 +16,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 REQUIRED_LEGEND_GITLAB_CREDENTIALS = [
     "client_id", "client_secret", "openid_discovery_url",
@@ -28,9 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_legend_gitlab_credentials(creds):
-    """Raises a ValueError if the provided gitlab creds isn't a dict
-    or has missing keys/void values.
-    """
+    """Raises a ValueError if the provided GitLab creds dict isn't correct."""
     if not isinstance(creds, dict):
         raise ValueError("Gitlab creds must be a dict, got: %r", creds)
     if any([creds.get(k) is None
@@ -79,9 +76,7 @@ def set_legend_gitlab_creds_in_relation_data(
 
 
 def _validate_legend_gitlab_redirect_uris(redirect_uris):
-    """Raises a ValueError if the provided rediret_uris is not an
-    iterable list and/or has non-string elements.
-    """
+    """Raises a ValueError if the provided rediret_uris are incorrectly formatted."""
     if not isinstance(redirect_uris, list) or not all([
             isinstance(elem, str) for elem in redirect_uris]):
         raise ValueError(
@@ -109,25 +104,12 @@ def set_legend_gitlab_redirect_uris_in_relation_data(
 
 
 class LegendGitlabConsumer(framework.Object):
+    """Class facilitating and formalizing interactions with the GitLab integrator."""
+
     def __init__(self, charm, relation_name='finos-gitlab'):
         super().__init__(charm, relation_name)
         self.charm = charm
         self.relation_name = relation_name
-
-    def set_service_url(self, relation_id, service_type, service_url):
-        """Sets the service URL parameters in the relation for the
-        GitLab integrator to consume.
-
-        Args:
-            relation_id: ID of the relation to set URL data from.
-            service_url: string URL of the service to set.
-
-        Returns:
-
-        Raises:
-            TooManyRelatedAppsError if relation id is not provided and
-            multiple relation of the same name are present.
-        """
 
     def get_legend_gitlab_creds(self, relation_id):
         """Get GitLab OAuth connection data from the provided relation.

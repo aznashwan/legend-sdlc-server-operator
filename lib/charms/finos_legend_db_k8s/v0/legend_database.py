@@ -1,4 +1,4 @@
-# Copyright 2021 Canonical
+# Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Module defining Legend DB consumer class and helpers."""
@@ -16,7 +16,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 LEGEND_DB_RELATION_DATA_KEY = "legend-db-connection"
 REQUIRED_LEGEND_DATABASE_CREDENTIALS = [
@@ -27,8 +27,9 @@ logger = logging.getLogger(__name__)
 
 def get_database_connection_from_mongo_data(
         mongodb_consumer_data, mongodb_databases):
-    """Returns a dict with Mongo connection info for Legend components
-    just like `LegendDatabaseConsumer.get_legend_database_creds()`.
+    """Returns a dict with Mongo connection info for Legend components.
+
+    Output is compatible with `LegendDatabaseConsumer.get_legend_database_creds()`.
 
     Args:
         mongodb_consumer_connection: connection data as returned by
@@ -119,9 +120,7 @@ def set_legend_database_creds_in_relation_data(relation_data, creds):
 
 
 def _validate_legend_database_credentials(creds):
-    """Returns True/False depending on whether the provided Legend
-    database credentials dict contains all the required fields.
-    """
+    """Checks whether the given legend DB creds contain all required keys."""
     if not isinstance(creds, dict) or any([
             not isinstance(creds.get(k), str) for k in REQUIRED_LEGEND_DATABASE_CREDENTIALS]):
         return False
